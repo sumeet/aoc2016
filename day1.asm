@@ -21,11 +21,6 @@ extern printf
 ; ...
 ; basically this means rem 4, r8 => positive values for north to west above
 
-%define N 0
-%define E 1
-%define S 2
-%define W 3
-
 
 ; accumulators:
 %define east_reg r9 ; i64: total moved east (can be negative)
@@ -72,9 +67,9 @@ extern printf
 ; sets flags (true or false)
   cmp %1, %2 ; val < lower bound
   jl %%false
-  cmp %1, %3 ; val <= upper bound
-  jle %%true
-  jg %%false
+  cmp %1, %3 ; val < upper bound
+  jl %%true
+  jge %%false
   %%true:
     mov op_reg, 0
     cmp op_reg, 0
@@ -86,27 +81,8 @@ extern printf
 
 %endmacro
 
-handle_digit: ; uses arg from rdi
-  cmp dir_reg, N
-  je north
-  cmp dir_reg, E
-  je east
-  cmp dir_reg, S
-  je south
-  cmp dir_reg, W
-  je west
-  hlt
-north:
-  add north_reg, rdi
-  ret
-east:
-  add east_reg, rdi
-  ret
-south:
-  sub north_reg, rdi
-  ret
-west:
-  sub east_reg, rdi
+parse_digit:
+  nop
   ret
 turn_right:
   inc dir_reg
@@ -116,7 +92,6 @@ turn_left:
   dec dir_reg
   rem 4, dir_reg
   ret
-
 main:
 init:
   init_dir_reg()
@@ -126,15 +101,9 @@ init:
   init_op_reg()
 parse_loop:
   cmp_between byte this_char, '0', '9'
-  je is_a_number
-  jne not_a_number
-is_a_number:
-  mov rdi, 0
-  mov dil, byte this_char
-  sub rdi, '0'
-  call handle_digit
-  jmp continue_parse_loop
-not_a_number:
+  push continue_parse_loop
+  je parse_digit
+  add rsp, 8
   cmp byte this_char, 'R'
   push continue_parse_loop
   je turn_right
@@ -152,13 +121,7 @@ continue_parse_loop:
   inc str_index_reg
   jmp parse_loop
 done:
-  abs north_reg
-  abs east_reg
-  mov rax, 0
-  add rax, north_reg
-  add rax, east_reg
-print:
-  mov rsi, east_reg
+  mov rsi, dir_reg
   ;inc str_index_reg
   ;inc str_index_reg
   ;movzx rsi, byte [run_input + str_index_reg]
@@ -171,6 +134,5 @@ section .data
 FALSE equ 0
 TRUE equ -1
 message db "%d", 10, 0
-sample db "R9", 0
-;sample db "R5, L5, R5, R3", 0
+sample db "R5, L5, R5, R3", 0
 input db "L3, R2, L5, R1, L1, L2, L2, R1, R5, R1, L1, L2, R2, R4, L4, L3, L3, R5, L1, R3, L5, L2, R4, L5, R4, R2, L2, L1, R1, L3, L3, R2, R1, L4, L1, L1, R4, R5, R1, L2, L1, R188, R4, L3, R54, L4, R4, R74, R2, L4, R185, R1, R3, R5, L2, L3, R1, L1, L3, R3, R2, L3, L4, R1, L3, L5, L2, R2, L1, R2, R1, L4, R5, R4, L5, L5, L4, R5, R4, L5, L3, R4, R1, L5, L4, L3, R5, L5, L2, L4, R4, R4, R2, L1, L3, L2, R5, R4, L5, R1, R2, R5, L2, R4, R5, L2, L3, R3, L4, R3, L2, R1, R4, L5, R1, L5, L3, R4, L2, L2, L5, L5, R5, R2, L5, R1, L3, L2, L2, R3, L3, L4, R2, R3, L1, R2, L5, L3, R4, L4, R4, R3, L3, R1, L3, R5, L5, R1, R5, R3, L1", 0
