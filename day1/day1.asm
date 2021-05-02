@@ -158,10 +158,7 @@ done:
   add rax, north_reg
   add rax, east_reg
 print:
-  mov rsi, east_reg
-  ;inc str_index_reg
-  ;inc str_index_reg
-  ;movzx rsi, byte [run_input + str_index_reg]
+  mov rsi, rax
   mov rdi, message
   mov rax, 0
   call printf
@@ -171,6 +168,5 @@ section .data
 FALSE equ 0
 TRUE equ -1
 message db "%d", 10, 0
-sample db "R9", 0
-;sample db "R5, L5, R5, R3", 0
+sample db "R5, L5, R5, R3", 0
 input db "L3, R2, L5, R1, L1, L2, L2, R1, R5, R1, L1, L2, R2, R4, L4, L3, L3, R5, L1, R3, L5, L2, R4, L5, R4, R2, L2, L1, R1, L3, L3, R2, R1, L4, L1, L1, R4, R5, R1, L2, L1, R188, R4, L3, R54, L4, R4, R74, R2, L4, R185, R1, R3, R5, L2, L3, R1, L1, L3, R3, R2, L3, L4, R1, L3, L5, L2, R2, L1, R2, R1, L4, R5, R4, L5, L5, L4, R5, R4, L5, L3, R4, R1, L5, L4, L3, R5, L5, L2, L4, R4, R4, R2, L1, L3, L2, R5, R4, L5, R1, R2, R5, L2, R4, R5, L2, L3, R3, L4, R3, L2, R1, R4, L5, R1, L5, L3, R4, L2, L2, L5, L5, R5, R2, L5, R1, L3, L2, L2, R3, L3, L4, R2, R3, L1, R2, L5, L3, R4, L4, R4, R3, L3, R1, L3, R5, L5, R1, R5, R3, L1", 0
