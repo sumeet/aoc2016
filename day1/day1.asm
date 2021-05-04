@@ -3,6 +3,49 @@ section .text
 global main
 extern printf
 
+%macro test_is_already_visited 2
+; %1: east_reg
+; %2: north_reg
+  ; TODO: are we supposed to use the stack for this value?
+  mov byte [test_already_visited_loop_counter], 0
+  %%loop:
+  mov rax, 0
+  mov al, byte [test_already_visited_loop_counter]
+  cmp al, byte [num_visited_points]
+  je %%false
+
+  mov rax, point_size
+  mov op_reg, point_size
+  mov rdx, [test_already_visited_loop_counter]
+  mul rdx
+  cmp %1b, byte [visited_points_array + rax + point.x]
+  jne %%continue
+  cmp %2b, byte [visited_points_array + rax + point.y]
+  je %%true
+  %%continue:
+  inc byte [test_already_visited_loop_counter]
+  jmp %%loop
+  %%true:
+    mov op_reg, 0
+    cmp op_reg, 0
+    jmp %%end
+  %%false:
+    mov op_reg, 1
+    cmp op_reg, 0
+  %%end:
+%endmacro
+
+%macro save_visited_point 2 
+; %1: east_reg
+; %2: north_reg
+  mov rax, point_size
+  mov rdx, num_visited_points
+  mul rdx
+  mov byte [visited_points_array + rdx + point.x], %1b
+  mov byte [visited_points_array + rdx + point.y], %2b
+  inc byte [num_visited_points]
+%endmacro
+
 ;;;;;;;;;;;;;;;;;
 ;;; REGISTERS ;;;
 ;;;;;;;;;;;;;;;;;
@@ -46,7 +89,7 @@ extern printf
 %define init_op_reg() mov op_reg, 0
 
 ; data string to run on, can either be sample or input
-%define run_input input
+%define run_input sample
 %define this_char [run_input + str_index_reg]
 
 ;;;;;;;;;;;;;;;
@@ -99,19 +142,21 @@ handle_digit: ; uses arg from rdi
   je south
   cmp dir_reg, W
   je west
-  hlt
-north:
-  add north_reg, rdi
-  ret
-east:
-  add east_reg, rdi
-  ret
-south:
-  sub north_reg, rdi
-  ret
-west:
-  sub east_reg, rdi
-  ret
+  hlt ; unreachable
+
+  north:
+    add north_reg, rdi
+    ret
+  east:
+    add east_reg, rdi
+    ret
+  south:
+    sub north_reg, rdi
+    ret
+  west:
+    sub east_reg, rdi
+    ret
+
 turn_right:
   inc dir_reg
   rem 4, dir_reg
@@ -122,6 +167,7 @@ turn_left:
   ret
 
 main:
+    mov rbp, rsp; for correct debugging
 init:
   init_dir_reg()
   init_east_reg()
@@ -146,8 +192,15 @@ is_a_number:
 end_of_number:
   mov rdi, number_parse_reg
   call handle_digit
+  test_is_already_visited east_reg, north_reg
+  je found_already_visited
+  save_visited_point east_reg, north_reg
   mov number_parse_reg, 0
   ret
+found_already_visited:
+  add rsp, 8 ; simulates ret
+  jmp done
+  
 not_a_number:
   cmp byte this_char, 'R'
   push continue_parse_loop
@@ -188,5 +241,16 @@ section .data
 FALSE equ 0
 TRUE equ -1
 message db "%d", 10, 0
-;sample db "R156", 0
+sample db "R8, R4, R4, R8", 0
 input db "L3, R2, L5, R1, L1, L2, L2, R1, R5, R1, L1, L2, R2, R4, L4, L3, L3, R5, L1, R3, L5, L2, R4, L5, R4, R2, L2, L1, R1, L3, L3, R2, R1, L4, L1, L1, R4, R5, R1, L2, L1, R188, R4, L3, R54, L4, R4, R74, R2, L4, R185, R1, R3, R5, L2, L3, R1, L1, L3, R3, R2, L3, L4, R1, L3, L5, L2, R2, L1, R2, R1, L4, R5, R4, L5, L5, L4, R5, R4, L5, L3, R4, R1, L5, L4, L3, R5, L5, L2, L4, R4, R4, R2, L1, L3, L2, R5, R4, L5, R1, R2, R5, L2, R4, R5, L2, L3, R3, L4, R3, L2, R1, R4, L5, R1, L5, L3, R4, L2, L2, L5, L5, R5, R2, L5, R1, L3, L2, L2, R3, L3, L4, R2, R3, L1, R2, L5, L3, R4, L4, R4, R3, L3, R1, L3, R5, L5, R1, R5, R3, L1", 0
+
+num_visited_points: db 0
+section .bss
+struc point 
+  .x: resq 1 
+  .y: resq 1
+endstruc
+
+VISITED_POINTS_MAX_LENGTH equ 2000
+visited_points_array resb point_size * VISITED_POINTS_MAX_LENGTH
+test_already_visited_loop_counter resb 1

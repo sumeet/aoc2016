@@ -1,0 +1,6 @@
+set language asm
+set disassembly-flavor intel
+define asm_next
+nexti
+disassemble
+end
