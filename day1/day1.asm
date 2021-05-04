@@ -7,23 +7,23 @@ extern printf
 ; %1: east_reg
 ; %2: north_reg
   ; TODO: are we supposed to use the stack for this value?
-  mov byte [test_already_visited_loop_counter], 0
+  mov qword [test_already_visited_loop_counter], 0
   %%loop:
   mov rax, 0
-  mov al, byte [test_already_visited_loop_counter]
-  cmp al, byte [num_visited_points]
+  mov rax, qword [test_already_visited_loop_counter]
+  cmp rax, qword [num_visited_points]
   je %%false
 
   mov rax, point_size
   mov op_reg, point_size
-  mov rdx, [test_already_visited_loop_counter]
+  mov rdx, qword [test_already_visited_loop_counter]
   mul rdx
-  cmp %1b, byte [visited_points_array + rax + point.x]
+  cmp %1, qword [visited_points_array + rax + point.x]
   jne %%continue
-  cmp %2b, byte [visited_points_array + rax + point.y]
+  cmp %2, qword [visited_points_array + rax + point.y]
   je %%true
   %%continue:
-  inc byte [test_already_visited_loop_counter]
+  inc qword [test_already_visited_loop_counter]
   jmp %%loop
   %%true:
     mov op_reg, 0
@@ -43,7 +43,7 @@ extern printf
   mul rdx
   mov byte [visited_points_array + rdx + point.x], %1b
   mov byte [visited_points_array + rdx + point.y], %2b
-  inc byte [num_visited_points]
+  inc qword [num_visited_points]
 %endmacro
 
 ;;;;;;;;;;;;;;;;;
@@ -190,11 +190,22 @@ is_a_number:
   add number_parse_reg, op_reg
   jmp continue_parse_loop
 end_of_number:
-  mov rdi, number_parse_reg
+  ; TODO: are we supposed to use a stack var for this loop?
+  mov rdi, 0
+  mov qword [end_of_number_loop_counter], 0
+end_of_number_loop_begin:
+  mov rax, [end_of_number_loop_counter]
+  cmp rax, number_parse_reg
+  je end_of_number_end
+
+  mov rdi, 1
   call handle_digit
   test_is_already_visited east_reg, north_reg
   je found_already_visited
   save_visited_point east_reg, north_reg
+  inc qword [end_of_number_loop_counter]
+  jmp end_of_number_loop_begin
+end_of_number_end:
   mov number_parse_reg, 0
   ret
 found_already_visited:
@@ -241,16 +252,18 @@ section .data
 FALSE equ 0
 TRUE equ -1
 message db "%d", 10, 0
-sample db "R8, R4, R4, R8", 0
+sample db "R1000", 0
 input db "L3, R2, L5, R1, L1, L2, L2, R1, R5, R1, L1, L2, R2, R4, L4, L3, L3, R5, L1, R3, L5, L2, R4, L5, R4, R2, L2, L1, R1, L3, L3, R2, R1, L4, L1, L1, R4, R5, R1, L2, L1, R188, R4, L3, R54, L4, R4, R74, R2, L4, R185, R1, R3, R5, L2, L3, R1, L1, L3, R3, R2, L3, L4, R1, L3, L5, L2, R2, L1, R2, R1, L4, R5, R4, L5, L5, L4, R5, R4, L5, L3, R4, R1, L5, L4, L3, R5, L5, L2, L4, R4, R4, R2, L1, L3, L2, R5, R4, L5, R1, R2, R5, L2, R4, R5, L2, L3, R3, L4, R3, L2, R1, R4, L5, R1, L5, L3, R4, L2, L2, L5, L5, R5, R2, L5, R1, L3, L2, L2, R3, L3, L4, R2, R3, L1, R2, L5, L3, R4, L4, R4, R3, L3, R1, L3, R5, L5, R1, R5, R3, L1", 0
 
-num_visited_points: db 0
+num_visited_points: dq 0
 section .bss
 struc point 
   .x: resq 1 
   .y: resq 1
 endstruc
 
-VISITED_POINTS_MAX_LENGTH equ 2000
+VISITED_POINTS_MAX_LENGTH equ 300000
 visited_points_array resb point_size * VISITED_POINTS_MAX_LENGTH
-test_already_visited_loop_counter resb 1
+test_already_visited_loop_counter resq 1
+
+end_of_number_loop_counter resq 1
