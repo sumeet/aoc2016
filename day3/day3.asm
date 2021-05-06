@@ -77,8 +77,10 @@ parse_another_number:
   mov rdx, 10
   mul rdx
   movzx rbx, this_char
-  sub rbx, '0'
-  add rax, rbx
+  ;sub rbx, '0'
+  ;add rax, rbx
+  ; this is faster, thanks honnza
+  lea rax, [rax + rbx - '0']
   mov number_parse_reg, rax
   jmp continue_parse_loop
 store_another_number:
@@ -121,7 +123,6 @@ evaluate_all_sides:
   add rax, side_c_reg
   cmp rax, side_b_reg
   jle invalid_triangle
-  ; if valid, add to num_valid_triangles_reg
 valid_triangle:
   inc num_valid_triangles_reg
 invalid_triangle:
