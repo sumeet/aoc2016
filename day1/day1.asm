@@ -87,7 +87,6 @@ extern printf
     mov op_reg, 1
     cmp op_reg, 0
   %%end:
-
 %endmacro
 
 handle_digit: ; uses arg from rdi
