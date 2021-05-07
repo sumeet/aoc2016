@@ -169,5 +169,7 @@ current_column_no: db 0
 num_numbers_to_skip: db 0
 printf_msg: db "%d", 10, 0
 input: incbin "./input"
+db 10
+; hax: added a newline to the input to make this loop work
 ; null terminate the read file
 db 0
