@@ -1,134 +1,107 @@
+section .data
+INPUT_LENGTH equ 8
+input: db "ugkcyxxp", 0
+
+; sample
+;INPUT_LENGTH equ 3
+;input: db "abc", 0
+
+printf_msg: db "%.8x", 10, 0
+;printf_msg: db "%s", 10, 0
+; TODO: figure out how to call the actual itoa from libc (not able to link)
+itoa_msg: db "%d", 0
+checksum_buffer: times 16 db 0
+to_hash_buffer: times 1000 db 0
+password_iterations_remaining: db 8
+saved_password: dd 0 ; 8 * 0.5 (for 1 hex digit) => 4 bytes
+
+%define loop_index_reg r12 ; non-volatile register
+%define init_loop_index_reg() mov loop_index_reg, 0
+
+%macro memcpy 3
+; %1: dest addr
+; %2: src addr
+; %3: num_bytes
+  cld
+  mov rdi, %1
+  mov rsi, %2
+  mov rcx, %3
+  rep movsb
+%endmacro
+
 section .text
 ;; TODO: without libc
 global main
 extern printf
+extern sprintf
+; TODO: it's slow to use this but probably doesn't matter
+extern strlen
 
-%define parse_cursor_reg r12
-%define total_sum_reg r13
-%define sector_id_reg r14
+; from libcrypto
+; unsigned char *MD5(const unsigned char *d, unsigned long n,
+;                    unsigned char *md);
+extern MD5
 
-%macro clear_letter_count 0
-  %assign i 0
-  %rep 26
-    mov byte [letter_count + i], 0
-    %assign i i+1
-  %endrep
-%endmacro
-
-%macro cmp_between 3
-; %1: value
-; %2: lower bound (inclusive)
-; %3: upper bound (inclusive)
-; sets flags (true or false)
-  cmp %1, %2 ; val < lower bound
-  jl %%false
-  cmp %1, %3 ; val <= upper bound
-  jle %%true
-  jmp %%false
-  %%true:
-    mov rax, 0
-    cmp rax, 0
-    jmp %%end
-  %%false:
-    mov rax, 1
-    cmp rax, 0
-  %%end:
-%endmacro
-
-%define this_char byte [input + parse_cursor_reg]
-
-get_and_clear_winner:
-  %push
-  %stacksize flat64
-  %assign %$localsize 0 
-  %local winner_char:byte, winner_count:byte
-    enter %$localsize, 0
-    mov byte [winner_char], 0
-    mov byte [winner_count], 0
-    %assign i 0
-    %rep 26
-      movzx rax, byte [letter_count + i]
-      cmp al, byte [winner_count]
-      jle done%+ i
-      set_winner%+ i:
-        mov byte [winner_char], 'a' + i
-        mov byte [winner_count], al
-      done%+ i:
-      %assign i i+1
-    %endrep
-    ; clear the count of the highest char
-    movzx rax, byte [winner_char]
-    mov byte [letter_count + rax - 'a'], 0
-    ; return the highest char
-    movzx rax, byte [winner_char]
-    leave
-    ret
-  %pop
 main:
-init:
-  mov parse_cursor_reg, 0
-  mov total_sum_reg, 0
-line_loop:
-  mov sector_id_reg, 0
-  clear_letter_count
-inner_line_parse_loop:
-  ; end of line, if we made it this far, then we can add to total sum!
-  cmp this_char, ']'
-  jne not_end_of_line
-  add total_sum_reg, sector_id_reg
-  jmp continue_line_loop
-not_end_of_line:
-  ; hit null terminator, go print and end the program
-  cmp this_char, 0
-  je print
+  .init:
+    init_loop_index_reg()
 
-  cmp_between this_char, 'a', 'z'
-  je handle_alpha
-  cmp_between this_char, '0', '9'
-  je handle_digit
-  jmp continue_inner_line_parse_loop
-  handle_alpha:
-    ; if we've already seen the sector_id, then start verifying, because
-    ; the number appears AFTER the encrypted name
-    ;
-    ; name            id  cksum
-    ; ^               ^   ^
-    ; aaaaa-bbb-z-y-x-123[abxyz]
-    cmp sector_id_reg, 0
-    jne verify_checksum_char
-    count_letter:
-      movzx rax, this_char
-      inc byte [letter_count + rax - 'a']
-      jmp continue_inner_line_parse_loop
-    verify_checksum_char:
-      call get_and_clear_winner
-      ; get_and_clear_winner returns the first winningest char to rax
-      cmp al, this_char
-      je continue_inner_line_parse_loop
-      jmp continue_line_loop
-  handle_digit:
-    mov rax, sector_id_reg
-    mov rdx, 10
-    mul rdx
-    movzx rbx, this_char
-    lea sector_id_reg, [rax + rbx - '0']
-continue_inner_line_parse_loop:
-  inc parse_cursor_reg
-  jmp inner_line_parse_loop
-continue_line_loop:
-  inc parse_cursor_reg
-  jmp line_loop
+  .loop_body:
+    cmp byte [password_iterations_remaining], 0
+    je print
+
+    memcpy to_hash_buffer, input, INPUT_LENGTH
+    mov rdi, to_hash_buffer + INPUT_LENGTH
+    mov rsi, itoa_msg
+    mov rdx, loop_index_reg
+    mov rax, 0 ; not sure why rax needs to be set to 0 before calling
+    call sprintf
+
+    ; get the total length of the buffer we need to hash
+    mov rdi, to_hash_buffer
+    mov rax, 0
+    call strlen
+
+    ; md5sum it
+    mov rdi, to_hash_buffer
+    mov rsi, rax ; the size (return of strlen)
+    mov rdx, checksum_buffer
+    mov rax, 0
+    call MD5
+
+    ; check that first 5 hex digits, 20 bits, or first 2.5 bytes are 0
+
+    ; word (2 bytes, i.e., 16 bits)
+    cmp word [checksum_buffer], 0
+    jne .continue_loop
+    ; first 4 bits are 0
+    ; TODO: not sure why we have to move this into the register first, but the following didn't work:
+    ;   cmp byte [checksum_buffer + 2], 0x10 (who knows what the heck this did)
+    movzx rax, byte [checksum_buffer + 2]
+    cmp rax, 0x10
+    jge .continue_loop
+
+    ; grab the last 4 bits
+    and rax, 0b00001111 ; or 0xf
+
+    ; throw it into the saved password
+    movzx rcx, byte [password_iterations_remaining]
+    sub rcx, 1
+    lea rcx, [rcx * 4]
+    shl rax, cl
+
+    add dword [saved_password], eax
+    dec byte [password_iterations_remaining]
+  .continue_loop:
+    inc loop_index_reg
+    jmp .loop_body
+
 print:
-  mov rsi, total_sum_reg
   mov rdi, printf_msg
+  mov rsi, 0 ; not sure if this is needed
+  mov esi, dword [saved_password]
   mov rax, 0
   call printf
   mov rax, 0
   ret
 
-section .data
-printf_msg: db "%d", 10, 0
-input: incbin "./input"
-; null terminate the read file
-db 0
-letter_count: times 26 db 0
