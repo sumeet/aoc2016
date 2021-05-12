@@ -15,6 +15,7 @@ module Assembly
     Callable (..),
     Register (..),
     toInstructions,
+    exitZeroLibc
   )
 where
 
@@ -40,7 +41,7 @@ data InitData = InitData
   deriving (Show)
 
 toWord8s :: String -> [Word8]
-toWord8s = map $ toEnum . fromEnum
+toWord8s s = (map $ toEnum . fromEnum) s ++ [0]
 
 stringLiteral :: String -> InitData
 stringLiteral s =
@@ -76,7 +77,7 @@ data CFunction = CFunction
 data Register = RDI | RSI | RAX deriving (Show)
 
 -- TODO: need to put the size somewhere...
-data Operand = Reg Register | Loc Label deriving (Show)
+data Operand = Reg Register | LabelAddr Label | Lit Int deriving (Show)
 
 data Callable = CallCLabel CFuncLabel | CallLabel Label deriving (Show)
 
@@ -91,11 +92,18 @@ data CFuncCall = CFuncCall
 callingConventionOperands :: [Operand]
 callingConventionOperands = [Reg RDI, Reg RSI]
 
+exitZeroLibc :: [Instruction]
+exitZeroLibc = [Mov (Reg RAX) (Lit 0), Ret]
+
 toInstructions :: Code -> [Instruction]
 toInstructions (ExecInst i) = [i]
 toInstructions (CallCFunc CFuncCall {args, cFunc = CFunction {funcName}}) =
   argsSetup ++ [Call $ CallCLabel funcName]
   where
-    argsSetup = zipWith Mov args callingConventionOperands
+    argsSetup =
+      zipWith Mov callingConventionOperands args
+        -- TODO: clearing RAX has something to do with variadic functions... we shouldn't
+        -- actually do it every time
+        ++ [Mov (Reg RAX) (Lit 0)]
 
 data Code = ExecInst Instruction | CallCFunc CFuncCall deriving (Show)

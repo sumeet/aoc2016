@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Output where
+module Output (OutputNasm (..)) where
 
 import Assembly
   ( CFuncCall (CFuncCall),
@@ -15,6 +15,7 @@ import Assembly
     Program (..),
     Register (..),
     TextSection (..),
+    exitZeroLibc,
     toInstructions,
   )
 import Data.List (intercalate)
@@ -35,15 +36,20 @@ instance OutputNasm Program where
 
 instance OutputNasm InitData where
   toNasm InitData {label, val} =
-    "l" ++ show label ++ ": db " ++ intercalate ", " (map show (toList val))
+    toNasm label ++ ": db " ++ intercalate ", " (map show (toList val))
 
 instance OutputNasm TextSection where
   toNasm TextSection {cFunctions, mainCode} =
     intercalate "\n" $
       ["section .text"]
+        -- TODO: need to formalize main section and export...
+        ++ ["global main"]
         ++ map (\CFunction {funcName} -> "extern " ++ toNasm funcName) cFunctions
         ++ ["\n"]
+        ++ ["main:"]
         ++ map toNasm mainCode
+        ++ map toNasm exitZeroLibc
+        ++ ["\n"]
 
 instance OutputNasm Code where
   toNasm c = intercalate "\n" $ map toNasm $ toInstructions c
@@ -55,18 +61,18 @@ instance OutputNasm Instruction where
   toNasm Ret = "ret"
 
 instance OutputNasm Callable where
-  toNasm (CallCLabel label) = toNasm label
-  toNasm (CallLabel label) = toNasm label
+  toNasm (CallCLabel label) = "call " ++ toNasm label
+  toNasm (CallLabel label) = "call " ++ toNasm label
 
 instance OutputNasm CFuncLabel where
   toNasm (CFuncLabel s) = s
 
 instance OutputNasm Label where
-  toNasm (Label uuid) = filter (/= '-') $ toString uuid
+  toNasm (Label uuid) = "l" ++ filter (/= '-') (toString uuid)
 
 instance OutputNasm Operand where
-  -- TODO: need a way to specify size somewhere, until then registers are 8-bit
-  toNasm (Reg RDI) = "dil"
-  toNasm (Reg RSI) = "sil"
-  toNasm (Reg RAX) = "al"
-  toNasm (Loc label) = "byte [" ++ toNasm label ++ "]"
+  toNasm (Reg RDI) = "rdi"
+  toNasm (Reg RSI) = "rsi"
+  toNasm (Reg RAX) = "rax"
+  toNasm (LabelAddr label) = toNasm label
+  toNasm (Lit n) = show n
