@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Assembly
+      Day6
       Output
   other-modules:
       Paths_gen
