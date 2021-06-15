@@ -4,3 +4,4 @@ define asm_next
 nexti
 disassemble
 end
+la reg
