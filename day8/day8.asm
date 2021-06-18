@@ -29,6 +29,21 @@ next_screen: dq screen_b
   pop rax
 %endmacro
 
+%macro memcpy 3
+; %1: dest addr
+; %2: src addr
+; %3: num_bytes
+  cld
+  mov rdi, %1
+  mov rsi, %2
+  mov rcx, %3
+  rep movsb
+%endmacro
+
+%macro copy_this_screen_to_next_screen 0
+  memcpy [next_screen], [this_screen], TOTAL_WIDTH * TOTAL_HEIGHT
+%endmacro
+
 %macro cmp_between 3
 ; %1: value
 ; %2: lower bound (inclusive)
@@ -82,7 +97,8 @@ next_screen: dq screen_b
 
 %macro times_ten 1
 ; %1: register
-  lea %1, [%1 + %1 + %1 + %1 + %1 + %1 + %1 + %1 + %1 + %1]
+  lea %1, [%1 + %1 + %1 + %1 + %1] ; * 5
+  lea %1, [%1 + %1] ; * 2
 %endmacro
 
 %macro consume_number 2
@@ -91,6 +107,7 @@ next_screen: dq screen_b
 ; can use je if number actually consumed otherwise jne
 ; clobbers: rax, rbx
 %define input_cursor_reg rbx
+  mov %2, 0
   mov input_cursor_reg, %1
 
   ; first iteration
@@ -99,13 +116,17 @@ next_screen: dq screen_b
   
   movzx rax, byte [input_cursor_reg]
   lea %2, [rax  - '0']
-  inc byte [input_cursor_reg]
+  inc input_cursor_reg
 
   %%loop:
     cmp_between byte [input_cursor_reg], '0', '9'
     jne %%true ; can now bail with true because we would've already consumed a single number
 
-    movzx rax, 
+    times_ten %2
+    movzx rax, byte [input_cursor_reg]
+    lea %2, [%2 + rax - '0']
+    inc input_cursor_reg
+    jmp %%loop
   %%true:
     mov %1, input_cursor_reg ; save the new input cursor, consuming the number
 
@@ -143,11 +164,82 @@ main:
       consume_number input_cursor, r11
       jne .not_rect
 
+      %define x r10
+      %define y r11
+      %define orig_y r12
+      mov orig_y, y
+      .outer_loop:
+        mov y, orig_y
+        .inner_loop:
+          mov rax, x
+          sub rax, 1 ; because we're indexing by 0 instead of 1
+          mov rdx, TOTAL_WIDTH
+          mul rdx
+          add rax, y
+          sub rax, 1
+          add rax, [this_screen]
+
+          mov byte [rax], 1
+
+          dec y
+          cmp y, 0
+          jg .inner_loop
+        
+        dec x
+        cmp x, 0
+        jg .outer_loop
+      %undef x
+      %undef y
+      jmp continue_input_loop
     .not_rect:
+
+    .rotate_row:
+      match_exact_str input_cursor, "rotate row y="
+      jne .not_rotate_row
+      consume_number input_cursor, r10
+      match_exact_str input_cursor, " by "
+      consume_number input_cursor, r11
+
+      copy_this_screen_to_next_screen
+      %define y r10
+      %define shift_len r11
+      %define row_i r12
+      mov row_i, 0
+      .rotate_loop:
+        mov rax, y
+        mov rdx, TOTAL_WIDTH
+        mul rdx
+
+        add rax, row_i
+        ; rbx contains the source
+        movzx rbx, byte [this_screen + rax]
+
+        ; set up the dest
+        mov rax, y
+        add rax, shift_len
+
+        mov rcx, TOTAL_WIDTH
+        div rcx
+
+        mov rdx, 0
+
+        mov byte [next_screen + rdx], bl
+
+        inc row_i
+        cmp row_i, TOTAL_WIDTH
+        jl .rotate_loop
+      swap_screens
+      %undef row_i
+      %undef y
+      %undef shift_len
+      nop
+      
+    .not_rotate_row:
     
     
   continue_input_loop:
     inc input_cursor
+    jmp input_loop
   end_input_loop:
   %undef input_cursor
   leave
