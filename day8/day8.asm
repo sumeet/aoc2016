@@ -209,15 +209,16 @@ main:
         mov rax, y
         mov rdx, TOTAL_WIDTH
         mul rdx
-
         add rax, row_i
-        ; rbx contains the source
+
+        ; rbx contains the source pixel
         movzx rbx, byte [this_screen + rax]
 
         ; set up the dest
         mov rax, y
         add rax, shift_len
 
+        mov rdx, 0
         mov rcx, TOTAL_WIDTH
         div rcx
 
