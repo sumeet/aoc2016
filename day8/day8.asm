@@ -256,6 +256,62 @@ main:
       %undef y
       %undef shift_len
     .not_rotate_row:
+
+    .rotate_column:
+      match_exact_str input_cursor, "rotate column x="
+      jne .not_rotate_column
+      consume_number input_cursor, r10
+      jne .not_rotate_column
+      match_exact_str input_cursor, " by "
+      jne .not_rotate_column
+      consume_number input_cursor, r11
+      jne .not_rotate_column
+
+      copy_this_screen_to_next_screen
+
+      %define x r10
+      %define shift_len r11
+      %define column_i r12
+      mov column_i, 0
+      .rotate_loop:
+        mov rax, y
+        mov rdx, TOTAL_WIDTH
+        mul rdx
+        add rax, column_i
+        add rax, [this_screen]
+
+        ; rbx contains the source pixel
+        movzx rbx, byte [rax]
+
+        ; find the offset of the the dest pixel is being moved to
+        mov rax, shift_len
+        add rax, column_i
+
+        mov rdx, 0
+        mov rcx, TOTAL_WIDTH
+        div rcx
+        ; new offset is in the remainder, rdx
+
+        %define new_offset rcx
+        mov new_offset, rdx
+
+        mov rax, y
+        mov rdx, TOTAL_WIDTH
+        mul rdx
+        add rax, new_offset
+        add rax, [next_screen]
+        %undef new_offset
+
+        mov byte [rax], bl
+
+        inc column_i
+        cmp column_i, TOTAL_HEIGHT
+        jl .rotate_loop
+      swap_screens
+      %undef column_i
+      %undef y
+      %undef shift_len
+    .not_rotate_column:
     
     
   continue_input_loop:
