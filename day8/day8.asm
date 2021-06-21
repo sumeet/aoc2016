@@ -9,8 +9,8 @@ input: incbin "./input"
 db 10 ; add a newline after the input
 db 0 ; null terminate the input
 
-screen_a: times 0 db TOTAL_WIDTH * TOTAL_HEIGHT
-screen_b: times 0 db TOTAL_WIDTH * TOTAL_HEIGHT
+screen_a: times (TOTAL_WIDTH * TOTAL_HEIGHT) db 0
+screen_b: times (TOTAL_WIDTH * TOTAL_HEIGHT) db 0
 
 this_screen: dq screen_a
 next_screen: dq screen_b
@@ -19,11 +19,11 @@ next_screen: dq screen_b
   push rax
   push rbx
 
-  mov rax, this_screen
-  mov rbx, next_screen
+  mov rax, [this_screen]
+  mov rbx, [next_screen]
 
-  mov qword [this_screen], rax
-  mov qword [next_screen], rbx
+  mov qword [this_screen], rbx
+  mov qword [next_screen], rax
 
   pop rbx
   pop rax
@@ -33,11 +33,19 @@ next_screen: dq screen_b
 ; %1: dest addr
 ; %2: src addr
 ; %3: num_bytes
+  push rdi
+  push rsi
+  push rcx
+
   cld
   mov rdi, %1
   mov rsi, %2
   mov rcx, %3
   rep movsb
+
+  pop rcx
+  pop rsi
+  pop rdi
 %endmacro
 
 %macro copy_this_screen_to_next_screen 0
@@ -153,7 +161,7 @@ main:
     mov rax, input_cursor
     cmp byte [rax], 0
     je end_input_loop
-    
+
     .rect:
       match_exact_str input_cursor, "rect "
       jne .not_rect
@@ -171,11 +179,11 @@ main:
       .outer_loop:
         mov y, orig_y
         .inner_loop:
-          mov rax, x
+          mov rax, y
           sub rax, 1 ; because we're indexing by 0 instead of 1
           mov rdx, TOTAL_WIDTH
           mul rdx
-          add rax, y
+          add rax, x
           sub rax, 1
           add rax, [this_screen]
 
@@ -197,10 +205,14 @@ main:
       match_exact_str input_cursor, "rotate row y="
       jne .not_rotate_row
       consume_number input_cursor, r10
+      jne .not_rotate_row
       match_exact_str input_cursor, " by "
+      jne .not_rotate_row
       consume_number input_cursor, r11
+      jne .not_rotate_row
 
       copy_this_screen_to_next_screen
+
       %define y r10
       %define shift_len r11
       %define row_i r12
@@ -210,21 +222,31 @@ main:
         mov rdx, TOTAL_WIDTH
         mul rdx
         add rax, row_i
+        add rax, [this_screen]
 
         ; rbx contains the source pixel
-        movzx rbx, byte [this_screen + rax]
+        movzx rbx, byte [rax]
 
-        ; set up the dest
-        mov rax, y
-        add rax, shift_len
+        ; find the offset of the the dest pixel is being moved to
+        mov rax, shift_len
+        add rax, row_i
 
         mov rdx, 0
         mov rcx, TOTAL_WIDTH
         div rcx
+        ; new offset is in the remainder, rdx
 
-        mov rdx, 0
+        %define new_offset rcx
+        mov new_offset, rdx
 
-        mov byte [next_screen + rdx], bl
+        mov rax, y
+        mov rdx, TOTAL_WIDTH
+        mul rdx
+        add rax, new_offset
+        add rax, [next_screen]
+        %undef new_offset
+
+        mov byte [rax], bl
 
         inc row_i
         cmp row_i, TOTAL_WIDTH
@@ -233,8 +255,6 @@ main:
       %undef row_i
       %undef y
       %undef shift_len
-      nop
-      
     .not_rotate_row:
     
     
