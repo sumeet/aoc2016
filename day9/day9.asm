@@ -9,6 +9,17 @@ input: incbin "./input"
 db 0 ; null terminate the input so we can tell when it's over
 output_len: dq 0
 
+%macro match 2-*
+; %1: where to jump if match isn't found
+; %2-*: array of "string matcher" macro invocations
+  %assign no_match_jmp_point %1
+  %rep (%0-1)
+    %rotate 1
+    %1
+    jne no_match_jmp_point
+  %endrep
+%endmacro
+
 %macro times_ten 1
 ; %1: register
   lea %1, [%1 + %1 + %1 + %1 + %1] ; * 5
