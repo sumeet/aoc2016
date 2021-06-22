@@ -12,12 +12,13 @@ output_len: dq 0
 %macro match 2-*
 ; %1: where to jump if match isn't found
 ; %2-*: array of "string matcher" macro invocations
-  %assign no_match_jmp_point %1
+  %define no_match_jmp_point %1
   %rep (%0-1)
     %rotate 1
     %1
     jne no_match_jmp_point
   %endrep
+  %undef no_match_jmp_point
 %endmacro
 
 %macro times_ten 1
@@ -139,21 +140,27 @@ main:
     cmp byte [rax], 10
     je .end_input_loop
 
-    match_exact_str input_cursor, "("
-    jne .not_a_compression_marker
-    consume_number input_cursor, r10
-    jne .not_a_compression_marker
-    match_exact_str input_cursor, "x"
-    jne .not_a_compression_marker
-    consume_number input_cursor, r11
-    jne .not_a_compression_marker
-    match_exact_str input_cursor, ")"
-    jne .not_a_compression_marker
+    match .not_a_compression_marker, \
+      {match_exact_str input_cursor, "("}, \
+      {consume_number input_cursor, r10}, \
+      {match_exact_str input_cursor, "x"}, \
+      {consume_number input_cursor, r11}, \
+      {match_exact_str input_cursor, ")"}
+
+    .is_a_compression_marker:
+      %define num_chars r10
+      %define num_repeats r11
+      mov rax, num_chars
+      mov rdx, num_repeats
+      mul rdx
+      add qword [output_len], rax
+      add input_cursor, num_chars
+      jmp .outer_input_loop
+      %undef num_chars
+      %undef num_repeats
 
     .not_a_compression_marker:
       inc qword [output_len]
-      jmp .continue_outer_input_loop
-    .continue_outer_input_loop:
       inc input_cursor
       jmp .outer_input_loop
   .end_input_loop:
@@ -162,7 +169,7 @@ main:
 
 print:
   mov rdi, printf_msg
-  mov rsi, 234
+  mov rsi, qword [output_len]
   mov rax, 0
   call printf
   mov rax, 0
