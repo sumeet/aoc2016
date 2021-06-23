@@ -126,6 +126,72 @@ section .text
 global main
 extern printf
 
+count_decompressed:
+; rdi: start addr
+; rsi: length
+; returns count to rax
+  %define count qword [rbp - 8]
+  %define input_cursor qword [rbp - 16]
+  %define length qword [rbp - 24]
+  enter 24, 0
+    mov count, 0
+    mov input_cursor, rdi
+    mov length, rsi
+    .outer_input_loop:
+      cmp length, 0
+      je .end_input_loop
+
+      mov rax, input_cursor
+      ; bail if we encounter a newline or null byte, means we're at the end
+      ; of the input
+      cmp byte [rax], 0
+      je .end_input_loop
+      cmp byte [rax], 10
+      je .end_input_loop
+
+      match .not_a_compression_marker, \
+        {match_exact_str input_cursor, "("}, \
+        {consume_number input_cursor, r10}, \
+        {match_exact_str input_cursor, "x"}, \
+        {consume_number input_cursor, r11}, \
+        {match_exact_str input_cursor, ")"}
+
+      .is_a_compression_marker:
+        %define num_chars r10
+        %define num_repeats r11
+
+        push num_chars
+        push num_repeats
+
+        mov rdi, input_cursor
+        mov rsi, num_chars
+        call count_decompressed
+        ; rax contains the return value
+
+        pop num_repeats
+        pop num_chars
+
+        mul num_repeats
+        add count, rax
+
+        add input_cursor, num_chars
+        sub length, num_chars
+        jmp .outer_input_loop
+        %undef num_chars
+        %undef num_repeats
+
+      .not_a_compression_marker:
+        inc count
+        dec length
+        jmp .outer_input_loop
+
+    .end_input_loop:
+      mov rax, count
+  %undef count
+  %undef input_cursor
+  %undef length
+  leave
+  ret
 main:
   %define input_cursor qword [rbp - 8]
   enter 8, 0
