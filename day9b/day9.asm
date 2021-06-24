@@ -5,7 +5,8 @@ ON equ 1
 
 section .data
 printf_msg: db "%d", 10, 0
-input: incbin "./input"
+;input: incbin "./input"
+input: incbin "./sample"
 db 0 ; null terminate the input so we can tell when it's over
 output_len: dq 0
 
@@ -133,6 +134,7 @@ count_decompressed:
   %define count qword [rbp - 8]
   %define input_cursor qword [rbp - 16]
   %define length qword [rbp - 24]
+  ;int1
   enter 24, 0
     mov count, 0
     mov input_cursor, rdi
@@ -171,6 +173,8 @@ count_decompressed:
         pop num_repeats
         pop num_chars
 
+        int1
+
         mul num_repeats
         add count, rax
 
@@ -182,59 +186,25 @@ count_decompressed:
 
       .not_a_compression_marker:
         inc count
+        inc input_cursor
         dec length
         jmp .outer_input_loop
 
     .end_input_loop:
       mov rax, count
+      ;int1
   %undef count
   %undef input_cursor
   %undef length
   leave
   ret
 main:
-  %define input_cursor qword [rbp - 8]
-  enter 8, 0
-  mov input_cursor, input
-  .outer_input_loop:
-    mov rax, input_cursor
-
-    ; jump to the end if we encounter either a newline or null byte
-    cmp byte [rax], 0
-    je .end_input_loop
-    cmp byte [rax], 10
-    je .end_input_loop
-
-    match .not_a_compression_marker, \
-      {match_exact_str input_cursor, "("}, \
-      {consume_number input_cursor, r10}, \
-      {match_exact_str input_cursor, "x"}, \
-      {consume_number input_cursor, r11}, \
-      {match_exact_str input_cursor, ")"}
-
-    .is_a_compression_marker:
-      %define num_chars r10
-      %define num_repeats r11
-      mov rax, num_chars
-      mov rdx, num_repeats
-      mul rdx
-      add qword [output_len], rax
-      add input_cursor, num_chars
-      jmp .outer_input_loop
-      %undef num_chars
-      %undef num_repeats
-
-    .not_a_compression_marker:
-      inc qword [output_len]
-      inc input_cursor
-      jmp .outer_input_loop
-  .end_input_loop:
-  leave
-  %undef input_cursor
-
+  mov rdi, input
+  mov rsi, -1
+  call count_decompressed
 print:
   mov rdi, printf_msg
-  mov rsi, qword [output_len]
+  mov rsi, rax
   mov rax, 0
   call printf
   mov rax, 0
