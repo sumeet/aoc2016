@@ -4,11 +4,10 @@ OFF equ 0
 ON equ 1
 
 section .data
-printf_msg: db "%d", 10, 0
-;input: incbin "./input"
-input: incbin "./sample"
+printf_msg: db "%llu", 10, 0
+input: incbin "./input"
+;input: incbin "./sample"
 db 0 ; null terminate the input so we can tell when it's over
-output_len: dq 0
 
 %macro match 2-*
 ; %1: where to jump if match isn't found
@@ -134,7 +133,6 @@ count_decompressed:
   %define count qword [rbp - 8]
   %define input_cursor qword [rbp - 16]
   %define length qword [rbp - 24]
-  ;int1
   enter 24, 0
     mov count, 0
     mov input_cursor, rdi
@@ -151,6 +149,9 @@ count_decompressed:
       cmp byte [rax], 10
       je .end_input_loop
 
+      %define old_input_cursor rdx
+      mov old_input_cursor, input_cursor
+
       match .not_a_compression_marker, \
         {match_exact_str input_cursor, "("}, \
         {consume_number input_cursor, r10}, \
@@ -161,6 +162,12 @@ count_decompressed:
       .is_a_compression_marker:
         %define num_chars r10
         %define num_repeats r11
+
+        ; store how far the input cursor moved into rax
+        mov rax, input_cursor
+        sub rax, old_input_cursor
+        sub length, rax
+      %undef old_input_cursor
 
         push num_chars
         push num_repeats
@@ -173,13 +180,12 @@ count_decompressed:
         pop num_repeats
         pop num_chars
 
-        int1
-
         mul num_repeats
         add count, rax
 
         add input_cursor, num_chars
         sub length, num_chars
+
         jmp .outer_input_loop
         %undef num_chars
         %undef num_repeats
@@ -192,7 +198,6 @@ count_decompressed:
 
     .end_input_loop:
       mov rax, count
-      ;int1
   %undef count
   %undef input_cursor
   %undef length
