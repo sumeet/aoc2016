@@ -8,6 +8,25 @@ db 0 ; null terminate the input so we can tell when it's over
 ; lower byte of word is "low"
 ; higher byte of word is "high"
 bot_mapping: times 300 dw 0
+bot_holding: times 300 dw 0
+
+; clobbers rax
+%macro add_bot_holding 2
+  %define arg_dest_bot %1
+  %define arg_value %2
+
+  mov rax, bot_holding
+  lea rax, [rax + arg_dest_bot + arg_dest_bot]
+  cmp byte [rax], 0
+  je %%add_holding
+  add rax, 1
+%%add_holding:
+  mov byte [rax], arg_value
+  
+
+  %undef arg_value
+  %undef arg_dest_bot
+%endmacro
 
 %macro match 3-*
 ; %1: where to jump if match is found
@@ -140,7 +159,8 @@ extern printf
 
 main:
   %define input_cursor qword [rbp - 8]
-  enter 8, 0
+  %define starting_bot qword [rbp - 16]
+  enter 16, 0
     mov input_cursor, input
     .bot_mapping_loop:
       mov rax, input_cursor
@@ -176,7 +196,115 @@ main:
         inc input_cursor
         jmp .bot_mapping_loop
     .end_bot_mapping_loop:
-    int1
+
+    ; loop the input again from the beginning
+    mov input_cursor, input
+    .bot_holding_loop:
+      mov rax, input_cursor
+
+      ; jump to the end if we encounter either a newline or null byte
+      cmp byte [rax], 0
+      je .end_bot_holding_loop
+
+      %define value_no r11
+      %define dest_bot r12
+      match .is_a_bot_holding, input_cursor, \
+        {match_exact_str "value "}, \
+        {consume_number value_no}, \
+        {match_exact_str " goes to bot "}, \
+        {consume_number dest_bot}
+
+      jmp .not_a_bot_holding
+
+      .is_a_bot_holding:
+        add_bot_holding dest_bot, value_no%+b
+
+      ; there is only one bot in this input that receives two values
+      .determine_is_starting_bot:
+        mov rax, bot_holding
+        lea rax, [rax + dest_bot + dest_bot]
+        cmp byte [rax], 0
+        je .end
+        cmp byte [rax + 1], 0
+        je .end
+
+        mov starting_bot, dest_bot
+        .end:
+
+      %undef bot_no
+      %undef low_dest_bot
+      %undef high_dest_bot
+
+      .not_a_bot_holding:
+        inc input_cursor
+        jmp .bot_holding_loop
+    .end_bot_holding_loop:
+
+    .value_passing:
+      %define low_val r11
+      %define high_val r12
+
+      mov rax, bot_holding
+      mov rbx, starting_bot
+      lea rax, [rax + rbx + rbx]
+      mov low_val%+b, [rax]
+      mov high_val%+b, byte [rax + 1]
+
+      cmp low_val, high_val
+      jg .swap
+      jmp .noswap
+        .swap:
+          xchg low_val, high_val
+        .noswap:
+
+      ; Based on your instructions, what is the number of the bot that is 
+      ; responsible for comparing value-61 microchips with value-17 microchips?
+      cmp low_val, 17
+      jne .not_target
+      cmp high_val, 61
+      jne .not_target
+        .is_target:
+          mov rsi, starting_bot
+          jmp print
+        .not_target:
+          int1
+
+      .set_targets:
+        mov rax, bot_mapping
+        mov rbx, starting_bot
+        lea rax, [rax + rbx + rbx]
+        movzx rcx, byte [rax]
+        movzx rdx, byte [rax + 1]
+        add_bot_holding rcx, low_val%+b
+        add_bot_holding rdx, high_val%+b
+
+      .determine_is_starting_bot2: ; dup of .determine_is_starting_bot
+        mov rax, bot_holding
+        lea rax, [rax + rcx + rcx]
+        cmp byte [rax], 0
+        je .end2
+        cmp byte [rax + 1], 0
+        je .end2
+
+        mov starting_bot, rcx
+        jmp .end2
+
+        mov rax, bot_holding
+        lea rax, [rax + rdx + rdx]
+        cmp byte [rax], 0
+        je .end2
+        cmp byte [rax + 1], 0
+        je .end2
+        mov starting_bot, rdx
+
+        .end2:
+        ;int1
+        jmp .value_passing
+      
+      %undef low_val
+      %undef high_val
+      
+ 
   leave
   %undef input_cursor
 
