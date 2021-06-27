@@ -277,6 +277,7 @@ main:
         movzx rdx, byte [rax + 1]
         add_bot_holding rcx, low_val%+b
         add_bot_holding rdx, high_val%+b
+        int1
 
       .determine_is_starting_bot2: ; dup of .determine_is_starting_bot
         mov rax, bot_holding
@@ -298,7 +299,7 @@ main:
         mov starting_bot, rdx
 
         .end2:
-        ;int1
+        int1
         jmp .value_passing
       
       %undef low_val
