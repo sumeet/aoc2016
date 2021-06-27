@@ -156,7 +156,88 @@ section .text
 ;; TODO: without libc
 global main
 extern printf
+extern exit
 
+; just move the value to rsi before calling this
+print_and_exit:
+  mov rdi, printf_msg
+  mov rsi, rsi
+  mov rax, 0
+  call printf
+  mov rax, 0
+  mov rdi, 0 
+  call exit
+value_passing:
+; arg: starting_bot passed through rdi
+  %define arg_starting_bot rdi
+
+  %define low_val r11
+  %define high_val r12
+
+  mov rax, bot_holding
+  mov rbx, arg_starting_bot
+  lea rax, [rax + rbx + rbx]
+  mov low_val%+b, [rax]
+  mov high_val%+b, byte [rax + 1]
+
+  cmp low_val, high_val
+  jg .swap
+  jmp .noswap
+    .swap:
+      xchg low_val, high_val
+    .noswap:
+
+  ; Based on your instructions, what is the number of the bot that is 
+  ; responsible for comparing value-61 microchips with value-17 microchips?
+  cmp low_val, 17
+  jne .not_target
+  cmp high_val, 61
+  jne .not_target
+    .is_target:
+      mov rsi, arg_starting_bot
+      call print_and_exit
+      ret
+    .not_target:
+      ;int1
+
+  .set_targets:
+    mov rax, bot_mapping
+    mov rbx, arg_starting_bot
+    lea rax, [rax + rbx + rbx]
+    movzx rcx, byte [rax]
+    movzx rdx, byte [rax + 1]
+    add_bot_holding rcx, low_val%+b
+    add_bot_holding rdx, high_val%+b
+
+  ; dup of .determine_is_starting_bot
+  .determine_is_starting_bot2: 
+    mov rax, bot_holding
+    lea rax, [rax + rcx + rcx]
+    cmp byte [rax], 0
+    je .try_next
+    cmp byte [rax + 1], 0
+    je .try_next
+
+    mov rdi, rcx
+    push rdx
+    call value_passing
+    pop rdx
+
+  .try_next:
+    mov rax, bot_holding
+    lea rax, [rax + rdx + rdx]
+    cmp byte [rax], 0
+    je .end2
+    cmp byte [rax + 1], 0
+    je .end2
+
+    mov rdi, rdx
+    call value_passing
+
+    .end2:
+  %undef low_val
+  %undef high_val
+  ret
 main:
   %define input_cursor qword [rbp - 8]
   %define starting_bot qword [rbp - 16]
@@ -240,80 +321,10 @@ main:
         jmp .bot_holding_loop
     .end_bot_holding_loop:
 
-    .value_passing:
-      %define low_val r11
-      %define high_val r12
-
-      mov rax, bot_holding
-      mov rbx, starting_bot
-      lea rax, [rax + rbx + rbx]
-      mov low_val%+b, [rax]
-      mov high_val%+b, byte [rax + 1]
-
-      cmp low_val, high_val
-      jg .swap
-      jmp .noswap
-        .swap:
-          xchg low_val, high_val
-        .noswap:
-
-      ; Based on your instructions, what is the number of the bot that is 
-      ; responsible for comparing value-61 microchips with value-17 microchips?
-      cmp low_val, 17
-      jne .not_target
-      cmp high_val, 61
-      jne .not_target
-        .is_target:
-          mov rsi, starting_bot
-          jmp print
-        .not_target:
-          int1
-
-      .set_targets:
-        mov rax, bot_mapping
-        mov rbx, starting_bot
-        lea rax, [rax + rbx + rbx]
-        movzx rcx, byte [rax]
-        movzx rdx, byte [rax + 1]
-        add_bot_holding rcx, low_val%+b
-        add_bot_holding rdx, high_val%+b
-        int1
-
-      .determine_is_starting_bot2: ; dup of .determine_is_starting_bot
-        mov rax, bot_holding
-        lea rax, [rax + rcx + rcx]
-        cmp byte [rax], 0
-        je .end2
-        cmp byte [rax + 1], 0
-        je .end2
-
-        mov starting_bot, rcx
-        jmp .end2
-
-        mov rax, bot_holding
-        lea rax, [rax + rdx + rdx]
-        cmp byte [rax], 0
-        je .end2
-        cmp byte [rax + 1], 0
-        je .end2
-        mov starting_bot, rdx
-
-        .end2:
-        int1
-        jmp .value_passing
-      
-      %undef low_val
-      %undef high_val
-      
- 
+  mov rdi, starting_bot
   leave
+  call value_passing
+  ;int1
   %undef input_cursor
 
-; just move the value to print into rsi before jumping here
-print:
-  mov rdi, printf_msg
-  mov rsi, rsi
-  mov rax, 0
-  call printf
-  mov rax, 0
-  ret
+
