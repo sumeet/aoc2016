@@ -1,10 +1,10 @@
 section .data
 
 printf_msg: db "%u", 10, 0
-input: incbin "./sample"
+input: incbin "./input"
 db 0 ; null terminate the input so we can tell when it's over
 
-NUM_BOTS equ 209
+NUM_BOTS equ 210 ; highest index is 209
 NUM_OUTPUTS equ 20
 
 ; one 2-byte slot for each bot
@@ -170,6 +170,26 @@ global main
 extern printf
 extern exit
 
+check_for_answer:
+  push rdx ; multiplying clears rdx, so we'll reinstate it below
+
+  movzx rax, byte [outputs]
+  movzx rbx, byte [outputs + 1 + 1]
+  mul rbx
+  movzx rbx, byte [outputs + 2 + 2]
+  mul rbx
+
+  pop rdx
+
+  cmp rax, 0
+  jne .got_an_answer
+  .still_needs_work:
+    ret
+  .got_an_answer:
+    ;int1
+    mov rsi, rax
+    call print_and_exit
+    ret
 ; just move the value to rsi before calling this
 print_and_exit:
   mov rdi, printf_msg
@@ -209,8 +229,14 @@ value_passing:
     add_bot_holding rcx, low_val%+b
     add_bot_holding rdx, high_val%+b
 
+    call check_for_answer
+
   ; dup of .determine_is_starting_bot
   .determine_is_starting_bot2: 
+    ; skip if this is an output
+    cmp rcx, NUM_BOTS
+    jg .try_next
+
     mov rax, bot_holding
     lea rax, [rax + rcx + rcx]
     cmp byte [rax], 0
@@ -224,6 +250,10 @@ value_passing:
     pop rdx
 
   .try_next:
+    ; skip if this is an output
+    cmp rdx, NUM_BOTS
+    jg .end2
+
     mov rax, bot_holding
     lea rax, [rax + rdx + rdx]
     cmp byte [rax], 0
@@ -376,8 +406,8 @@ main:
 
   mov rdi, starting_bot
   leave
-  ;int1
   call value_passing
+
   %undef input_cursor
 
 

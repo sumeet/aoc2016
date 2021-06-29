@@ -1,5 +1,5 @@
 source /usr/share/peda/peda.py
-#set can-use-hw-watchpoints 1
-#watch (char[20])outputs
+set can-use-hw-watchpoints 1
+watch (char[6])outputs
 start
 r
