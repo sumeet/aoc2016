@@ -1,9 +1,5 @@
 source /usr/share/peda/peda.py
 #set can-use-hw-watchpoints 1
-#watch (int)this_screen
-#watch (int)next_screen
-#watch (char*)input
-#watch (char[300])screen_a
-#watch (char[300])screen_b
+#watch (char[20])outputs
 start
 r

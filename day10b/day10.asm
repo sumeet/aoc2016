@@ -39,15 +39,22 @@ bot_mapping: times NUM_BOTS dw 0
 ; %3-*: array of "string matcher" macro invocations
   %define match_jmp_point %1
   %define match_input_cursor %2
+
+  push match_input_cursor
+
   %rep (%0-2)
     %rotate 1
     %2, match_input_cursor
     jne %%end
   %endrep
+
+  add rsp, 8 ; we're going to use the modified input_cursor, so no need to reset 
+             ; it back to the old value
   jmp match_jmp_point
+  %%end:
+  pop match_input_cursor
   %undef match_jmp_point
   %undef match_input_cursor
-  %%end:
 %endmacro
 
 %macro times_ten 1
@@ -254,29 +261,29 @@ main:
         {match_exact_str " and high to bot "}, \
         {consume_number high_dest_bot}
 
-      ;match .is_an_output_bot_mapping, input_cursor, \
-      ;  {match_exact_str "bot "}, \
-      ;  {consume_number bot_no}, \
-      ;  {match_exact_str " gives low to output "}, \
-      ;  {consume_number low_dest_bot}, \
-      ;  {match_exact_str " and high to bot "}, \
-      ;  {consume_number high_dest_bot}
+      match .is_an_output_bot_mapping, input_cursor, \
+        {match_exact_str "bot "}, \
+        {consume_number bot_no}, \
+        {match_exact_str " gives low to output "}, \
+        {consume_number low_dest_bot}, \
+        {match_exact_str " and high to bot "}, \
+        {consume_number high_dest_bot}
 
-      ;match .is_a_bot_output_mapping, input_cursor, \
-      ;  {match_exact_str "bot "}, \
-      ;  {consume_number bot_no}, \
-      ;  {match_exact_str " gives low to bot "}, \
-      ;  {consume_number low_dest_bot}, \
-      ;  {match_exact_str " and high to output "}, \
-      ;  {consume_number high_dest_bot}
+      match .is_a_bot_output_mapping, input_cursor, \
+        {match_exact_str "bot "}, \
+        {consume_number bot_no}, \
+        {match_exact_str " gives low to bot "}, \
+        {consume_number low_dest_bot}, \
+        {match_exact_str " and high to output "}, \
+        {consume_number high_dest_bot}
 
-      ;match .is_an_output_output_mapping, input_cursor, \
-      ;  {match_exact_str "bot "}, \
-      ;  {consume_number bot_no}, \
-      ;  {match_exact_str " gives low to output "}, \
-      ;  {consume_number low_dest_bot}, \
-      ;  {match_exact_str " and high to output "}, \
-      ;  {consume_number high_dest_bot}
+      match .is_an_output_output_mapping, input_cursor, \
+        {match_exact_str "bot "}, \
+        {consume_number bot_no}, \
+        {match_exact_str " gives low to output "}, \
+        {consume_number low_dest_bot}, \
+        {match_exact_str " and high to output "}, \
+        {consume_number high_dest_bot}
 
       jmp .continue
 
@@ -369,6 +376,7 @@ main:
 
   mov rdi, starting_bot
   leave
+  ;int1
   call value_passing
   %undef input_cursor
 
