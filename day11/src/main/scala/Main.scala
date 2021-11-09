@@ -137,16 +137,15 @@ object Main extends App {
   var movesCount = 0
   while (!facilityQ.exists(_.isDone)) {
     facilityQ = facilityQ.flatMap(_.nextMoves).distinct
-    val facilityQByScore = facilityQ.groupBy(_.closenessScore)
-    if (facilityQByScore.size > 1) {
-      val minScore = facilityQByScore.keys.min
+    var facilityQByScore = facilityQ.groupBy(_.closenessScore)
+    if (facilityQByScore.size > 4) {
       val scores = facilityQByScore.keys.toList.sorted
-      pprint.log((minScore, scores))
-      facilityQ = facilityQByScore.removed(minScore).values.flatten.toList
+      for (score <- scores.slice(0, (scores.length / 1.75).toInt)) {
+        facilityQByScore = facilityQByScore.removed(score)
+      }
+      facilityQ = facilityQByScore.values.flatten.toList
     }
-
     movesCount += 1
-    pprint.log(movesCount)
   }
   pprint.log(movesCount)
 }
