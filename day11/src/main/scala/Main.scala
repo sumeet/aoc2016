@@ -139,4 +139,7 @@ object Main extends App {
     movesCount += 1
   }
   println(movesCount)
+  var (head, last) = facilityQ.filter((_, facility) => facility.isDone).head
+  head.foreach(println)
+  println(last)
 }
