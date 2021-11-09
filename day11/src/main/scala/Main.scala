@@ -5,6 +5,12 @@ val INPUT = """The first floor contains a strontium generator, a strontium-compa
               |The third floor contains a thulium-compatible microchip.
               |The fourth floor contains nothing relevant.""".stripMargin
 
+val SAMPLE =
+  """The first floor contains a hydrogen-compatible microchip, and a lithium-compatible microchip.
+               |The second floor contains a hydrogen generator.
+               |The third floor contains a lithium generator.
+               |The fourth floor contains nothing relevant.""".stripMargin
+
 enum Item:
   case Generator(name: String)
   case Microchip(name: String)
@@ -33,6 +39,7 @@ def parse(input: String): Facility = {
       if (stuff == "nothing relevant") {
         List.empty
       } else {
+        println(stuff)
         stuff
           .split(", ")
           .map(_.split(' '))
@@ -56,7 +63,7 @@ case class Facility(
     currentFloor: Int,
     elevatorContents: (Option[Item], Option[Item])
 ) {
-  def isDone: Boolean = floors.init.forall(_.isEmpty) && floors.last.nonEmpty
+  def isDone: Boolean = floors.init.forall(_.isEmpty)
   def isValid: Boolean = {
     val isUnconnectedChip = currentFloorContents.exists {
       case Item.Generator(_) => false
@@ -76,22 +83,16 @@ case class Facility(
   }
   def nextMoves: List[Facility] = {
     val elevatorSwaps =
-      // 1. empty elevator
-      List(
-        copy(
-          elevatorContents = (None, None),
-          floors = floors.updated(currentFloor, currentFloorContents)
-        )
-      ) ++
-        // 2. move just a single item onto the elevator
-        without1(currentFloorContents)
-          .map((elItem, rest) =>
-            copy(
-              elevatorContents = (Some(elItem), None),
-              floors = floors.updated(currentFloor, rest)
-            )
-          ) ++
-        // 3. move 2 items onto the elevator
+      // can't have an empty elevator, so.
+      // move just a single item onto the elevator
+      without1(currentFloorContents)
+        .map((elItem, rest) =>
+          copy(
+            elevatorContents = (Some(elItem), None),
+            floors = floors.updated(currentFloor, rest)
+          )
+        ) ++
+        // and move 2 items onto the elevator
         without2(currentFloorContents)
           .map((elItem1, elItem2, rest) =>
             copy(
@@ -101,14 +102,14 @@ case class Facility(
           )
 
     List(currentFloor - 1, currentFloor + 1)
-      .filter(floorNo => floorNo > 0 && floorNo < floors.length)
+      .filter(floorNo => floorNo >= 0 && floorNo < floors.length)
       .flatMap(floorNo =>
         elevatorSwaps.map(facility => facility.copy(currentFloor = floorNo))
       )
       .distinct
       .filter(_.isValid)
   }
-  // including the elevator contents
+  // current floor items + the contents of the elevator
   private def currentFloorContents = floors(currentFloor) ++ LazyList(
     elevatorContents._1,
     elevatorContents._2
@@ -117,10 +118,12 @@ case class Facility(
 
 object Main extends App {
   var facilityQ = List(parse(INPUT))
+  println(facilityQ)
   var movesCount = 0
   while (!facilityQ.exists(_.isDone)) {
     facilityQ = facilityQ.flatMap(_.nextMoves).distinct
     movesCount += 1
+    println(movesCount)
   }
   println(movesCount)
 }
