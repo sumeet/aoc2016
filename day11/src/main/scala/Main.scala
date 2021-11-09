@@ -116,6 +116,11 @@ case class Facility(
 }
 
 object Main extends App {
-  var facility = parse(INPUT)
-  println(facility.isValid)
+  var facilityQ = List(parse(INPUT))
+  var movesCount = 0
+  while (!facilityQ.exists(_.isDone)) {
+    facilityQ = facilityQ.flatMap(_.nextMoves).distinct
+    movesCount += 1
+  }
+  println(movesCount)
 }
