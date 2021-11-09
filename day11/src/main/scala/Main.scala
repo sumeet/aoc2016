@@ -125,23 +125,7 @@ case class Facility(
 }
 
 object Main extends App {
-//  var facilityQ = List((List.empty[Facility], parse(SAMPLE)))
-//  var movesCount = 0
-//  while (!facilityQ.exists((_, facility) => facility.isDone)) {
-//    facilityQ = facilityQ
-//      .map((prev, facility) => {
-//        facility.nextMoves.map(nextFacility => {
-//          (prev ++ LazyList(facility), nextFacility)
-//        })
-//      })
-//      .flatten
-//    print(movesCount)
-//    movesCount += 1
-//  }
-//  pprint.pprintln(movesCount)
-//  pprint.pprintln(facilityQ.filter((_, facility) => facility.isDone).head)
-
-  var facilityQ = List(parse(SAMPLE))
+  var facilityQ = List(parse(INPUT))
   var movesCount = 0
   while (!facilityQ.exists(_.isDone)) {
     facilityQ = facilityQ.flatMap(_.nextMoves).distinct
