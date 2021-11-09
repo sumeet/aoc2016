@@ -12,8 +12,8 @@ private val SAMPLE =
                |The fourth floor contains nothing relevant.""".stripMargin
 
 enum Item:
-  case Generator(name: String)
-  case Microchip(name: String)
+  case Generator(name: Char)
+  case Microchip(name: Char)
 
 def matches(gen: Item.Generator, chip: Item.Microchip): Boolean = {
   gen.name == chip.name
@@ -44,8 +44,8 @@ def parse(input: String): Facility = {
           .split(", ")
           .map(_.split(' '))
           .map(s =>
-            if (s(2) == "generator") Item.Generator(s(1))
-            else Item.Microchip(s(1))
+            if (s(2) == "generator") Item.Generator(s(1)(0))
+            else Item.Microchip(s(1)(0))
           )
           .toList
       }
@@ -81,13 +81,17 @@ case class Facility(
     currentFloor: Int,
     elevatorContents: (Option[Item], Option[Item])
 ) {
-  def isDone: Boolean = floors.init.forall(_.isEmpty) && currentFloor == floors.length - 1
-  def isValid: Boolean = {
-    floors.zipWithIndex
-      .map((floorItems, floorNo) => {
+  def isDone: Boolean =
+    floors.init.forall(_.isEmpty) && currentFloor == floors.length - 1
+  def isValid: Boolean =
+    contentsByFloorNo.forall((_, items) => isFloorValid(items))
+  private def contentsByFloorNo: Iterator[(Int, List[Item])] = {
+    floors.iterator.zipWithIndex.map((floorItems, floorNo) =>
+      (
+        floorNo,
         if (floorNo == currentFloor) currentFloorContents else floorItems
-      })
-      .forall(isFloorValid)
+      )
+    )
   }
   def nextMoves: List[Facility] = {
     val elevatorSwaps =
@@ -117,6 +121,10 @@ case class Facility(
       .distinct
       .filter(_.isValid)
   }
+  def closenessScore: Int = contentsByFloorNo
+    .map((floorNo, items) => floorNo * items.length)
+    .sum
+
   // current floor items + the contents of the elevator
   private def currentFloorContents = floors(currentFloor) ++ LazyList(
     elevatorContents._1,
@@ -129,7 +137,16 @@ object Main extends App {
   var movesCount = 0
   while (!facilityQ.exists(_.isDone)) {
     facilityQ = facilityQ.flatMap(_.nextMoves).distinct
+    val facilityQByScore = facilityQ.groupBy(_.closenessScore)
+    if (facilityQByScore.size > 1) {
+      val minScore = facilityQByScore.keys.min
+      val scores = facilityQByScore.keys.toList.sorted
+      pprint.log((minScore, scores))
+      facilityQ = facilityQByScore.removed(minScore).values.flatten.toList
+    }
+
     movesCount += 1
+    pprint.log(movesCount)
   }
   pprint.log(movesCount)
 }
