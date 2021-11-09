@@ -11,6 +11,16 @@ def matches(gen: Item.Generator, chip: Item.Microchip): Boolean = {
   gen.name == chip.name
 }
 
+def without1[A](xs: List[A]): Seq[(A, List[A])] = {
+  xs.zipWithIndex.map((x, i) =>
+    (x, xs.slice(0, i) ++ xs.slice(i + 1, xs.length))
+  )
+}
+
+def without2[A](xs: List[A]): Seq[(A, A, List[A])] = {
+  without1(xs).flatMap((x, ys) => without1(ys).map((y, zs) => (x, y, zs)))
+}
+
 def parse(input: String): Facility = {
   val floors = input.linesIterator
     .map(line => {
@@ -48,67 +58,55 @@ case class Facility(
 ) {
   def isDone: Boolean = floors.init.forall(_.isEmpty) && floors.last.nonEmpty
   def isValid: Boolean = {
-    val allItems = currentFloorContents ++ LazyList(
-      elevatorContents._1,
-      elevatorContents._2
-    ).flatten
-    val isUnconnectedChip = allItems.exists {
+    val isUnconnectedChip = currentFloorContents.exists {
       case Item.Generator(_) => false
       case Item.Microchip(chipName) =>
-        !allItems.exists {
+        !currentFloorContents.exists {
           case Item.Generator(genName) if chipName == genName => true
           case _                                              => false
         }
     }
-    val isAtLeastOneGenerator = allItems.exists {
+    val isAtLeastOneGenerator = currentFloorContents.exists {
       case Item.Generator(_) => true
       case _                 => false
     }
-    // if a chip is ever left in the same area as another RTG, and it's not connected to its own RTG,
-    // the chip will be fried
-    val isInvalid = isUnconnectedChip && isAtLeastOneGenerator
-    !isInvalid
+    // "if a chip is ever left in the same area as another RTG, and it's not connected to its own RTG,
+    // the chip will be fried"
+    !isUnconnectedChip || !isAtLeastOneGenerator
   }
   def nextMoves: List[Facility] = {
     var allMoves = List.empty[Facility]
 
-    var elevatorSwaps = List.empty[Facility]
-    // 1. try taking stuff off the elevator, either both, or one each
-    (elevatorContents: @unchecked) match {
-      case (Some(a), Some(b)) =>
-        elevatorSwaps = elevatorSwaps ++ List(
-          copy(
-            elevatorContents = (None, None),
-            floors =
-              floors.updated(currentFloor, currentFloorContents ++ List(a, b))
-          )
+    var elevatorSwaps = List.empty[Facility] ++
+      // 1. empty the elevator
+      List(
+        copy(
+          elevatorContents = (None, None),
+          floors = floors.updated(currentFloor, currentFloorContents)
         )
-    }
-    (elevatorContents: @unchecked) match {
-      case (Some(a), _) =>
-        elevatorSwaps = elevatorSwaps ++ List(
-          copy(
-            elevatorContents = (None, elevatorContents._2),
-            floors =
-              floors.updated(currentFloor, currentFloorContents ++ List(a))
-          )
+      ) ++
+      // 2. move just a single item onto the elevator
+      without1(currentFloorContents).map((elItem, rest) =>
+        copy(
+          elevatorContents = (Some(elItem), None),
+          floors = floors.updated(currentFloor, rest)
         )
-    }
-    (elevatorContents: @unchecked) match {
-      case (_, Some(b)) =>
-        elevatorSwaps = elevatorSwaps ++ List(
-          copy(
-            elevatorContents = (elevatorContents._1, None),
-            floors =
-              floors.updated(currentFloor, currentFloorContents ++ List(b))
-          )
-        )
-    }
-    // 2. could also take any items and move them onto the elevators
+      )
+    // 3. move 2 items onto the elevator
+    without2(currentFloorContents).map((elItem1, elItem2, rest) =>
+      copy(
+        elevatorContents = (Some(elItem1), Some(elItem2)),
+        floors = floors.updated(currentFloor, rest)
+      )
+    )
 
     allMoves.distinct.filter(_.isValid)
   }
-  private def currentFloorContents = floors(currentFloor)
+  // including the elevator contents
+  private def currentFloorContents = floors(currentFloor) ++ LazyList(
+    elevatorContents._1,
+    elevatorContents._2
+  ).flatten
 }
 
 object Main extends App {
