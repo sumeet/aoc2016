@@ -81,7 +81,7 @@ case class Facility(
     currentFloor: Int,
     elevatorContents: (Option[Item], Option[Item])
 ) {
-  def isDone: Boolean = floors.init.forall(_.isEmpty)
+  def isDone: Boolean = floors.init.forall(_.isEmpty) && currentFloor == floors.length - 1
   def isValid: Boolean = {
     floors.zipWithIndex
       .map((floorItems, floorNo) => {
@@ -125,21 +125,27 @@ case class Facility(
 }
 
 object Main extends App {
-  var facilityQ = List((List.empty[Facility], parse(SAMPLE)))
-  println(facilityQ)
+//  var facilityQ = List((List.empty[Facility], parse(SAMPLE)))
+//  var movesCount = 0
+//  while (!facilityQ.exists((_, facility) => facility.isDone)) {
+//    facilityQ = facilityQ
+//      .map((prev, facility) => {
+//        facility.nextMoves.map(nextFacility => {
+//          (prev ++ LazyList(facility), nextFacility)
+//        })
+//      })
+//      .flatten
+//    print(movesCount)
+//    movesCount += 1
+//  }
+//  pprint.pprintln(movesCount)
+//  pprint.pprintln(facilityQ.filter((_, facility) => facility.isDone).head)
+
+  var facilityQ = List(parse(SAMPLE))
   var movesCount = 0
-  while (!facilityQ.exists((_, facility) => facility.isDone)) {
-    facilityQ = facilityQ
-      .map((prev, facility) => {
-        facility.nextMoves.map(nextFacility => {
-          (prev ++ LazyList(facility), nextFacility)
-        })
-      })
-      .flatten
+  while (!facilityQ.exists(_.isDone)) {
+    facilityQ = facilityQ.flatMap(_.nextMoves).distinct
     movesCount += 1
   }
-  println(movesCount)
-  var (head, last) = facilityQ.filter((_, facility) => facility.isDone).head
-  head.foreach(println)
-  println(last)
+  pprint.log(movesCount)
 }
