@@ -1,11 +1,11 @@
 import scala.language.postfixOps
 
-val INPUT = """The first floor contains a strontium generator, a strontium-compatible microchip, a plutonium generator, and a plutonium-compatible microchip.
+private val INPUT = """The first floor contains a strontium generator, a strontium-compatible microchip, a plutonium generator, and a plutonium-compatible microchip.
               |The second floor contains a thulium generator, a ruthenium generator, a ruthenium-compatible microchip, a curium generator, and a curium-compatible microchip.
               |The third floor contains a thulium-compatible microchip.
               |The fourth floor contains nothing relevant.""".stripMargin
 
-val SAMPLE =
+private val SAMPLE =
   """The first floor contains a hydrogen-compatible microchip, and a lithium-compatible microchip.
                |The second floor contains a hydrogen generator.
                |The third floor contains a lithium generator.
@@ -58,6 +58,24 @@ def parse(input: String): Facility = {
   )
 }
 
+def isFloorValid(items: List[Item]): Boolean = {
+  val isUnconnectedChip = items.exists {
+    case Item.Generator(_) => false
+    case Item.Microchip(chipName) =>
+      !items.exists {
+        case Item.Generator(genName) if chipName == genName => true
+        case _                                              => false
+      }
+  }
+  val isAtLeastOneGenerator = items.exists {
+    case Item.Generator(_) => true
+    case _                 => false
+  }
+  // "if a chip is ever left in the same area as another RTG, and it's not connected to its own RTG,
+  // the chip will be fried"
+  !isUnconnectedChip || !isAtLeastOneGenerator
+}
+
 case class Facility(
     floors: List[List[Item]],
     currentFloor: Int,
@@ -65,21 +83,11 @@ case class Facility(
 ) {
   def isDone: Boolean = floors.init.forall(_.isEmpty)
   def isValid: Boolean = {
-    val isUnconnectedChip = currentFloorContents.exists {
-      case Item.Generator(_) => false
-      case Item.Microchip(chipName) =>
-        !currentFloorContents.exists {
-          case Item.Generator(genName) if chipName == genName => true
-          case _                                              => false
-        }
-    }
-    val isAtLeastOneGenerator = currentFloorContents.exists {
-      case Item.Generator(_) => true
-      case _                 => false
-    }
-    // "if a chip is ever left in the same area as another RTG, and it's not connected to its own RTG,
-    // the chip will be fried"
-    !isUnconnectedChip || !isAtLeastOneGenerator
+    floors.zipWithIndex
+      .map((floorItems, floorNo) => {
+        if (floorNo == currentFloor) currentFloorContents else floorItems
+      })
+      .forall(isFloorValid)
   }
   def nextMoves: List[Facility] = {
     val elevatorSwaps =
@@ -117,13 +125,18 @@ case class Facility(
 }
 
 object Main extends App {
-  var facilityQ = List(parse(INPUT))
+  var facilityQ = List((List.empty[Facility], parse(SAMPLE)))
   println(facilityQ)
   var movesCount = 0
-  while (!facilityQ.exists(_.isDone)) {
-    facilityQ = facilityQ.flatMap(_.nextMoves).distinct
+  while (!facilityQ.exists((_, facility) => facility.isDone)) {
+    facilityQ = facilityQ
+      .map((prev, facility) => {
+        facility.nextMoves.map(nextFacility => {
+          (prev ++ LazyList(facility), nextFacility)
+        })
+      })
+      .flatten
     movesCount += 1
-    println(movesCount)
   }
   println(movesCount)
 }
