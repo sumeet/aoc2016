@@ -8,3 +8,5 @@ lazy val root = (project in file("."))
   )
 
 libraryDependencies += "com.lihaoyi" %% "pprint" % "0.6.6"
+libraryDependencies +=
+  "org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.4"
