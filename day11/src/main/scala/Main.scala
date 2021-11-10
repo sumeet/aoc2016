@@ -94,35 +94,51 @@ case class Facility(
     )
   }
   def nextMoves: List[Facility] = {
-    val elevatorSwaps =
-      // can't have an empty elevator, so.
-      // move just a single item onto the elevator
-      without1(currentFloorContents)
-        .map((elItem, rest) =>
-          copy(
-            elevatorContents = (Some(elItem), None),
-            floors = floors.updated(currentFloor, rest)
-          )
-        ) ++
-        // and move 2 items onto the elevator
-        without2(currentFloorContents)
-          .map((elItem1, elItem2, rest) =>
-            copy(
-              elevatorContents = (Some(elItem1), Some(elItem2)),
-              floors = floors.updated(currentFloor, rest)
-            )
-          )
-
-    List(currentFloor - 1, currentFloor + 1)
-      .filter(floorNo => floorNo >= 0 && floorNo < floors.length)
-      .flatMap(floorNo =>
-        elevatorSwaps.map(facility => facility.copy(currentFloor = floorNo))
+    // can't have an empty elevator, so.
+    // move just a single item onto the elevator
+    val moveOneItemTemplates = without1(currentFloorContents)
+      .map((elItem, rest) =>
+        copy(
+          elevatorContents = (Some(elItem), None),
+          floors = floors.updated(currentFloor, rest)
+        )
       )
-      .distinct
-      .filter(_.isValid)
+    // and move 2 items onto the elevator
+    val moveTwoItemsTemplates = without2(currentFloorContents)
+      .map((elItem1, elItem2, rest) =>
+        copy(
+          elevatorContents = (Some(elItem1), Some(elItem2)),
+          floors = floors.updated(currentFloor, rest)
+        )
+      )
+
+    val moveItemsDownstairs = if (currentFloor > 0) {
+      val moveOneItemDownstairs = moveOneItemTemplates
+        .map(fac => fac.copy(currentFloor = currentFloor - 1))
+        .filter(_.isValid)
+      val moveTwoItemsDownstairs = moveTwoItemsTemplates
+        .map(fac => fac.copy(currentFloor = currentFloor - 1))
+        .filter(_.isValid)
+      if (moveOneItemDownstairs.nonEmpty) moveOneItemDownstairs
+      else moveTwoItemsDownstairs
+    } else Seq.empty
+
+    val moveItemsUpstairs =
+      if (currentFloor < floors.length - 1) {
+        val moveOneItemUpstairs = moveOneItemTemplates
+          .map(fac => fac.copy(currentFloor = currentFloor + 1))
+          .filter(_.isValid)
+        val moveTwoItemsUpstairs = moveTwoItemsTemplates
+          .map(fac => fac.copy(currentFloor = currentFloor + 1))
+          .filter(_.isValid)
+        if (moveTwoItemsUpstairs.nonEmpty) moveTwoItemsUpstairs
+        else moveOneItemUpstairs
+      } else Seq.empty
+
+    (moveItemsDownstairs ++ moveItemsUpstairs).toList
   }
   def closenessScore: Int = contentsByFloorNo
-    .map((floorNo, items) => floorNo * items.length)
+    .map((floorNo, items) => floorNo * floorNo * floorNo * items.length)
     .sum
 
   // current floor items + the contents of the elevator
@@ -133,19 +149,35 @@ case class Facility(
 }
 
 object Main extends App {
-  var facilityQ = List(parse(INPUT))
+  var initial = parse(INPUT)
+
+  // for part 2
+  initial = initial.copy(floors =
+    initial.floors.updated(
+      0,
+      initial.floors.head ++ List(
+        Item.Generator('d'),
+        Item.Microchip('d'),
+        Item.Generator('e'),
+        Item.Microchip('e')
+      )
+    )
+  )
+
+  var facilityQ = List(initial)
   var movesCount = 0
   while (!facilityQ.exists(_.isDone)) {
     facilityQ = facilityQ.flatMap(_.nextMoves).distinct
     var facilityQByScore = facilityQ.groupBy(_.closenessScore)
     if (facilityQByScore.size > 4) {
       val scores = facilityQByScore.keys.toList.sorted
-      for (score <- scores.slice(0, (scores.length / 1.75).toInt)) {
+      for (score <- scores.slice(0, (scores.length / 3).toInt)) {
         facilityQByScore = facilityQByScore.removed(score)
       }
       facilityQ = facilityQByScore.values.flatten.toList
     }
     movesCount += 1
+    pprint.log(movesCount)
   }
   pprint.log(movesCount)
 }
