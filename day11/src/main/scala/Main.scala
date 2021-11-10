@@ -1,7 +1,4 @@
-import Main.facilityQ
-
 import scala.language.postfixOps
-import collection.parallel.CollectionConverters.IterableIsParallelizable
 
 private val INPUT = """The first floor contains a strontium generator, a strontium-compatible microchip, a plutonium generator, and a plutonium-compatible microchip.
               |The second floor contains a thulium generator, a ruthenium generator, a ruthenium-compatible microchip, a curium generator, and a curium-compatible microchip.
@@ -121,10 +118,11 @@ case class Facility(
       .flatMap(floorNo =>
         elevatorSwaps.map(facility => facility.copy(currentFloor = floorNo))
       )
+      .distinct
       .filter(_.isValid)
   }
-  def closenessScore: Int = floors.zipWithIndex
-    .map((items, floorNo) => floorNo * floorNo * items.length)
+  def closenessScore: Int = contentsByFloorNo
+    .map((floorNo, items) => floorNo * items.length)
     .sum
 
   // current floor items + the contents of the elevator
@@ -134,75 +132,20 @@ case class Facility(
   ).flatten
 }
 
-// part 1
 object Main extends App {
-  var initial = parse(INPUT)
-
-//  initial = initial.copy(floors =
-//    initial.floors.updated(
-//      0,
-//      initial.floors.head ++ LazyList(
-//        Item.Generator('d'),
-//        Item.Microchip('d'),
-//        Item.Generator('e'),
-//        Item.Microchip('e')
-//      )
-//    )
-//  )
-
-  var facilityQ = List(initial)
+  var facilityQ = List(parse(INPUT))
   var movesCount = 0
   while (!facilityQ.exists(_.isDone)) {
-    facilityQ = facilityQ.par.flatMap(_.nextMoves).toList.distinct
-    val facilityQByScore = facilityQ.groupBy(_.closenessScore)
-    val numScoresToTake = if (movesCount < 20) 3 else 2
-    val topThreeScores =
-      facilityQByScore.keys.toList.sorted.reverse.take(numScoresToTake)
-    pprint.log(topThreeScores)
-    facilityQ = topThreeScores.take(3).flatMap(facilityQByScore)
-//    if (facilityQByScore.size > 4) {
-//      val scores = facilityQByScore.keys.toList.sorted
-//      for (score <- scores.slice(0, (scores.length / 1.75).toInt)) {
-//        facilityQByScore = facilityQByScore.removed(score)
-//      }
-//      facilityQ = facilityQByScore.values.flatten.toList
-//    }
-    movesCount += 1
-    pprint.log(movesCount)
-  }
-  pprint.log(movesCount)
-}
-
-// part 2
-object Main2 extends App {
-  var initial = parse(INPUT)
-  initial = initial.copy(floors =
-    initial.floors.updated(
-      0,
-      initial.floors.head ++ LazyList(
-        Item.Generator('d'),
-        Item.Microchip('d'),
-        Item.Generator('e'),
-        Item.Microchip('e')
-      )
-    )
-  )
-  var facilityQ = List(initial)
-  var movesCount = 0
-  while (!facilityQ.exists(_.isDone)) {
-    facilityQ = facilityQ.par.flatMap(_.nextMoves).toList.distinct
-    pprint.log("before culling", facilityQ.size.toString)
+    facilityQ = facilityQ.flatMap(_.nextMoves).distinct
     var facilityQByScore = facilityQ.groupBy(_.closenessScore)
     if (facilityQByScore.size > 4) {
       val scores = facilityQByScore.keys.toList.sorted
-      for (score <- scores.slice(0, (scores.length / 1.67).toInt)) {
+      for (score <- scores.slice(0, (scores.length / 1.75).toInt)) {
         facilityQByScore = facilityQByScore.removed(score)
       }
       facilityQ = facilityQByScore.values.flatten.toList
-      pprint.log("after culling", facilityQ.size.toString)
     }
     movesCount += 1
-    pprint.log(movesCount)
   }
   pprint.log(movesCount)
 }
