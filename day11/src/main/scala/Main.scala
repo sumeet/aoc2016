@@ -1,4 +1,5 @@
 import scala.language.postfixOps
+import scala.collection.parallel.CollectionConverters._
 
 private val INPUT = """The first floor contains a strontium generator, a strontium-compatible microchip, a plutonium generator, and a plutonium-compatible microchip.
               |The second floor contains a thulium generator, a ruthenium generator, a ruthenium-compatible microchip, a curium generator, and a curium-compatible microchip.
@@ -14,6 +15,21 @@ private val SAMPLE =
 enum Item:
   case Generator(name: Char)
   case Microchip(name: Char)
+
+def toShort(item: Item): String = item match {
+  case Item.Generator(n) => "g" + n
+  case Item.Microchip(n) => "c" + n
+}
+
+def numPairs(items: List[Item]): Int = {
+  var chips = Set.empty[Char]
+  var gens = Set.empty[Char]
+  for (item <- items) item match {
+    case Item.Generator(g) => gens = gens + g
+    case Item.Microchip(c) => chips = chips + c
+  }
+  (chips intersect gens).size
+}
 
 def matches(gen: Item.Generator, chip: Item.Microchip): Boolean = {
   gen.name == chip.name
@@ -52,7 +68,9 @@ def parse(input: String): Facility = {
     })
     .toList
   Facility(
+    prevHashes = Set.empty,
     floors,
+    movesCount = 0,
     currentFloor = 0,
     elevatorContents = (None, None)
   )
@@ -77,10 +95,15 @@ def isFloorValid(items: List[Item]): Boolean = {
 }
 
 case class Facility(
+    prevHashes: Set[Int],
     floors: List[List[Item]],
     currentFloor: Int,
-    elevatorContents: (Option[Item], Option[Item])
+    elevatorContents: (Option[Item], Option[Item]),
+    movesCount: Int
 ) {
+  def hash: Int =
+    contentsByFloorNo.map(_._2.map(toShort).sorted).toList.hashCode()
+
   def isDone: Boolean =
     floors.init.forall(_.isEmpty) && currentFloor == floors.length - 1
   def isValid: Boolean =
@@ -135,11 +158,11 @@ case class Facility(
         else moveOneItemUpstairs
       } else Seq.empty
 
-    (moveItemsDownstairs ++ moveItemsUpstairs).toList
+    (moveItemsDownstairs ++ moveItemsUpstairs)
+      .filterNot(_.prevHashes contains hash)
+      .map(_.copy(movesCount = movesCount + 1, prevHashes = prevHashes + hash))
+      .toList
   }
-  def closenessScore: Int = contentsByFloorNo
-    .map((floorNo, items) => floorNo * floorNo * floorNo * items.length)
-    .sum
 
   // current floor items + the contents of the elevator
   private def currentFloorContents = floors(currentFloor) ++ LazyList(
@@ -167,15 +190,14 @@ object Main extends App {
   var facilityQ = List(initial)
   var movesCount = 0
   while (!facilityQ.exists(_.isDone)) {
-    facilityQ = facilityQ.flatMap(_.nextMoves).distinct
-    var facilityQByScore = facilityQ.groupBy(_.closenessScore)
-    if (facilityQByScore.size > 4) {
-      val scores = facilityQByScore.keys.toList.sorted
-      for (score <- scores.slice(0, (scores.length / 3).toInt)) {
-        facilityQByScore = facilityQByScore.removed(score)
-      }
-      facilityQ = facilityQByScore.values.flatten.toList
-    }
+    var allPrevHashes = Set.empty[Int]
+    for (h <- facilityQ.map(_.prevHashes)) allPrevHashes = allPrevHashes union h
+
+    facilityQ = facilityQ.par
+      .flatMap(_.nextMoves)
+      .filterNot(allPrevHashes contains _.hash)
+      .toList
+      .distinctBy(_.hash)
     movesCount += 1
     pprint.log(movesCount)
   }
